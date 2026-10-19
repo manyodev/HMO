@@ -27,10 +27,11 @@
 
       <div class="nav">
         <a href="form.html">Submit HMO</a>
+        <a href="signup.html">Sign Up</a>
       </div>
     </div>
     <main class="form-container">
-      <form id="forumForm">
+      <form id="forumForm" novalidate>
         <h3>Submit your HMO</h3>
         <p class="status-msg" id="statusMsg" aria-live="polite" hidden>
           HMO submitted successfully!
@@ -40,7 +41,7 @@
           type="text"
           id="authorName"
           name="authorName"
-          placeholder="Your Name"
+          placeholder="Your Username"
           required
         />
         <textarea
@@ -58,7 +59,7 @@
           accept="image/*"
           required
         />
-        <button type="submit">Submit for Review</button>
+        <button type="submit" id="submit-btn">Submit for Review</button>
       </form>
     </main>
   </body>

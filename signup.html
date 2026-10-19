@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Create a Hear Me Outs account." />
+    <meta
+      name="google-site-verification"
+      content="iAyP2labVlwA1udeagCVSFawy3AFd1TjURtyfgM6-mo"
+    />
+    <link rel="stylesheet" href="index.css" />
+    <link rel="stylesheet" href="images/design/css/all.min.css" />
+    <script src="index.js" defer></script>
+    <title>Sign Up - Hear Me Outs</title>
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="images/design/hmo-transparent.png"
+    />
+  </head>
+  <body>
+    <div class="header">
+      <a href="index.html"
+        ><div class="logo">
+          <img
+            src="images/design/hmo-transparent.png"
+            alt="Hear Me Outs Logo"
+          />
+          <h1>Hear Me Outs</h1>
+        </div></a
+      >
+
+      <div class="nav">
+        <a href="form.html">Submit HMO</a>
+      </div>
+    </div>
+    <main class="form-container">
+      <form id="signup-form">
+        <h2>Sign Up</h2>
+        <p class="status-msg" id="statusMsg2" aria-live="polite" hidden></p>
+        <input
+          type="text"
+          id="display-name"
+          name="display_name"
+          placeholder="Display Name"
+          autocomplete="name"
+          maxlength="80"
+          required
+        />
+        <input
+          type="text"
+          id="username"
+          name="username"
+          placeholder="Username (3-24 letters, numbers, or underscores)"
+          autocomplete="username"
+          minlength="3"
+          maxlength="24"
+          pattern="[A-Za-z0-9_]{3,24}"
+          required
+        />
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="Email Address"
+          autocomplete="email"
+          required
+        />
+        <input
+          type="password"
+          id="password"
+          name="password"
+          placeholder="Password (min 6 chars)"
+          autocomplete="new-password"
+          minlength="6"
+          required
+        />
+        <button type="submit" id="submit-btn2">Create Account</button>
+      </form>
+      <form id="signin-form">
+        <h2 id="signin">Already have an account?</h2>
+        <p class="status-msg" id="signinStatus" aria-live="polite" hidden></p>
+        <input
+          type="email"
+          id="signin-email"
+          name="email"
+          placeholder="Email Address"
+          autocomplete="username"
+          required
+        />
+        <input
+          type="password"
+          id="signin-password"
+          name="password"
+          placeholder="Password"
+          autocomplete="current-password"
+          required
+        />
+        <button type="submit" id="signin-btn">Sign In</button>
+      </form>
+    </main>
+  </body>
+</html>

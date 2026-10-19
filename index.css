@@ -39,6 +39,21 @@ body {
   color: var(--text-color);
   height: 100%;
 }
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.nav button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--secondary-color);
+  border-radius: 6px;
+  background: var(--primary-color);
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+}
 .logo {
   height: 100%;
   width: auto;
@@ -72,6 +87,47 @@ main {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1 1 220px;
+}
+.form-container input,
+.form-container textarea,
+.form-container button {
+  font: inherit;
+}
+.form-container input,
+.form-container textarea {
+  padding: 10px;
+}
+.form-container button {
+  min-height: 42px;
+  cursor: pointer;
+}
+.status-msg.error,
+.error {
+  color: #a00024;
+}
+.status-msg.success {
+  color: #176b35;
+}
+.profile-container {
+  display: block;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.profile-container section {
+  max-width: 900px;
+  margin: 0 auto 24px;
+}
+.profile-container h1,
+.profile-container h2 {
+  overflow-wrap: anywhere;
+}
+.profile-container .post {
+  margin: 16px 0;
+}
+.post-status {
+  display: block;
+  color: #8a5200;
 }
 .post {
   background-color: var(--background-color);
@@ -138,15 +194,20 @@ main {
   .header {
     width: calc(100% - 24px);
     height: auto;
-    min-height: 64px;
     margin: 12px auto 16px;
     padding: 8px 12px;
     box-sizing: border-box;
-    gap: 8px;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .header a {
     height: auto;
+  }
+
+  .header > a {
+    display: flex;
+    justify-content: center;
   }
 
   .logo {
@@ -171,7 +232,21 @@ main {
     min-height: 44px;
     align-items: center;
     justify-content: center;
-    padding: 0 8px;
+    padding: 0 10px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .nav {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px 4px;
+  }
+
+  .nav button {
+    min-height: 44px;
+    padding: 0 10px;
     font-size: 14px;
     white-space: nowrap;
   }
@@ -179,8 +254,8 @@ main {
   main {
     width: 100%;
     height: auto;
-    min-height: calc(100vh - 92px);
-    min-height: calc(100svh - 92px);
+    min-height: calc(100vh - 140px);
+    min-height: calc(100svh - 140px);
     box-sizing: border-box;
     overflow: visible;
   }
@@ -237,11 +312,14 @@ main {
     margin: 0 auto 16px;
     padding: 16px;
     justify-content: center;
+    flex-direction: column;
+    gap: 24px;
   }
 
   .form-container form {
     width: 100%;
     min-width: 0;
+    flex: 1 1 auto;
   }
 
   .form-container input,
@@ -263,5 +341,8 @@ main {
   .form-container textarea {
     min-height: 112px;
     resize: vertical;
+  }
+  .profile-container {
+    padding: 12px;
   }
 }
