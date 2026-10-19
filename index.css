@@ -128,17 +128,66 @@ main {
   }
 
   body {
+    width: 100%;
     height: auto;
     min-height: 100vh;
     margin: 0;
     align-items: flex-start;
   }
 
+  .header {
+    width: calc(100% - 24px);
+    height: auto;
+    min-height: 64px;
+    margin: 12px auto 16px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    gap: 8px;
+  }
+
+  .header a {
+    height: auto;
+  }
+
+  .logo {
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .logo img {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+  }
+
+  .logo h1 {
+    margin: 0;
+    font-size: clamp(15px, 4vw, 19px);
+    line-height: 1.15;
+  }
+
+  .nav a {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
   main {
     width: 100%;
     height: auto;
-    min-height: 100vh;
+    min-height: calc(100vh - 92px);
+    min-height: calc(100svh - 92px);
     box-sizing: border-box;
+    overflow: visible;
+  }
+
+  #approved-feed {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .post {
@@ -146,8 +195,8 @@ main {
       "img"
       "content";
     grid-template-columns: minmax(0, 1fr);
-    margin: 16px;
-    padding: 14px;
+    margin: 12px;
+    padding: 12px;
     box-sizing: border-box;
   }
 
@@ -163,7 +212,13 @@ main {
 
   .post-content {
     min-width: 0;
-    padding: 14px 2px 4px;
+    padding: 12px 2px 4px;
+    overflow-wrap: anywhere;
+  }
+
+  .post-content p {
+    font-size: 16px;
+    line-height: 1.6;
   }
 
   .post-title {
@@ -174,5 +229,39 @@ main {
   .post-actions button {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  main.form-container {
+    width: calc(100% - 24px);
+    min-height: 0;
+    margin: 0 auto 16px;
+    padding: 16px;
+    justify-content: center;
+  }
+
+  .form-container form {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .form-container input,
+  .form-container textarea,
+  .form-container button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 16px;
+  }
+
+  .form-container input,
+  .form-container textarea {
+    padding: 10px;
+  }
+
+  .form-container textarea {
+    min-height: 112px;
+    resize: vertical;
   }
 }
