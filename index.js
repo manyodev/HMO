@@ -182,7 +182,7 @@ async function initializeApp() {
 
         // 1. Generate a completely unique file name to prevent collision overwrites
         const fileExtension = file.name.split(".").pop();
-        const uniqueFileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExtension}`;
+        const uniqueFileName = `${session.user.id}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExtension}`;
 
         // 2. Upload the file binary array straight into Supabase Bucket
         const { error: storageError } = await supabaseClient.storage
