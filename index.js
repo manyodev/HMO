@@ -87,7 +87,12 @@ async function initializeApp() {
   }
 
   const { data: authListener } = supabaseClient.auth.onAuthStateChange(
-    (_event, session) => renderNavigation(session),
+    (event, session) => {
+      renderNavigation(session);
+      if (feedContainer && event !== "INITIAL_SESSION") {
+        fetchApprovedPosts();
+      }
+    },
   );
   window.addEventListener(
     "beforeunload",
@@ -103,7 +108,9 @@ async function initializeApp() {
 
     const { data, error } = await supabaseClient
       .from("posts")
-      .select("username, content, image_url, created_at, submitted_by")
+      .select(
+        "id, username, content, image_url, created_at, submitted_by, author_profile:profiles!posts_submitted_by_profiles_fkey(avatar_url)",
+      )
       .eq("is_approved", true)
       .order("created_at", { ascending: false });
 
@@ -123,21 +130,43 @@ async function initializeApp() {
         const author = post.submitted_by
           ? `<a href="profile.html?id=${encodeURIComponent(post.submitted_by)}">${escapeHTML(post.username)}</a>`
           : escapeHTML(post.username);
+        const authorAvatar = postAuthorAvatarMarkup(
+          post.author_profile?.avatar_url,
+          post.username,
+        );
         const imageUrl = safeImageUrl(post.image_url);
         return `
-                <div class="post">
+                <div class="post" data-post-id="${escapeHTML(post.id)}">
                 <div class="image-box">
                     ${imageUrl ? `<img src="${escapeHTML(imageUrl)}" alt="User upload">` : ""}
                     </div>
                     <div class="post-content">
-                    <strong>👤 ${author}</strong>
-                    <small style="color:#777;">• ${new Date(post.created_at).toLocaleDateString()}</small>
+                    <div class="post-author">
+                      ${authorAvatar}
+                      <strong>${author}</strong>
+                      <small style="color:#777;">• ${new Date(post.created_at).toLocaleDateString()}</small>
+                    </div>
                     <p>${escapeHTML(post.content)}</p>
+                    ${postReactionMarkup(post.id)}
                     </div>
                 </div>
             `;
       })
       .join("");
+    bindPostReactions(supabaseClient, feedContainer);
+    try {
+      await loadPostReactions(
+        supabaseClient,
+        feedContainer,
+        data.map((post) => post.id),
+      );
+    } catch (error) {
+      console.error(error);
+      feedContainer.querySelectorAll(".post-reaction-status").forEach((status) => {
+        status.textContent = "Reactions are currently unavailable.";
+        status.hidden = false;
+      });
+    }
   }
 
   if (forumForm) {
@@ -503,7 +532,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
 
     let postsQuery = client
       .from("posts")
-      .select("username, content, image_url, created_at, is_approved")
+      .select("id, username, content, image_url, created_at, is_approved")
       .eq("submitted_by", profile.id)
       .order("created_at", { ascending: false });
     if (!isOwnProfile) postsQuery = postsQuery.eq("is_approved", true);
@@ -512,7 +541,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
     if (postsError && isMissingSubmittedBy(postsError)) {
       let legacyPostsQuery = client
         .from("posts")
-        .select("username, content, image_url, created_at, is_approved")
+        .select("id, username, content, image_url, created_at, is_approved")
         .eq("username", profile.username)
         .eq("is_approved", true)
         .order("created_at", { ascending: false });
@@ -520,7 +549,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
     } else if (!postsError) {
       const { data, error } = await client
         .from("posts")
-        .select("username, content, image_url, created_at, is_approved")
+        .select("id, username, content, image_url, created_at, is_approved")
         .eq("username", profile.username)
         .is("submitted_by", null)
         .eq("is_approved", true)
@@ -544,25 +573,48 @@ async function loadProfile(client, profileContainer, profilePosts) {
       ${posts
         .map((post) => {
           const imageUrl = safeImageUrl(post.image_url);
+          const authorAvatar = postAuthorAvatarMarkup(
+            profile.avatar_url,
+            profile.display_name,
+          );
           const postStatus =
             isOwnProfile && !post.is_approved
               ? '<small class="post-status">Pending review</small>'
               : "";
           return `
-            <article class="post">
+            <article class="post" data-post-id="${escapeHTML(post.id)}">
               <div class="image-box">
                 ${imageUrl ? `<img src="${escapeHTML(imageUrl)}" alt="User upload">` : ""}
               </div>
               <div class="post-content">
-                <small style="color:#777;">${escapeHTML(new Date(post.created_at).toLocaleDateString())}</small>
+                <div class="post-author">
+                  ${authorAvatar}
+                  <strong>${escapeHTML(profile.display_name)}</strong>
+                  <small style="color:#777;">• ${escapeHTML(new Date(post.created_at).toLocaleDateString())}</small>
+                </div>
                 ${postStatus}
                 <p>${escapeHTML(post.content)}</p>
+                ${postReactionMarkup(post.id)}
               </div>
             </article>
           `;
         })
         .join("")}
     `;
+    bindPostReactions(client, profilePosts);
+    try {
+      await loadPostReactions(
+        client,
+        profilePosts,
+        posts.map((post) => post.id),
+      );
+    } catch (error) {
+      console.error(error);
+      profilePosts.querySelectorAll(".post-reaction-status").forEach((status) => {
+        status.textContent = "Reactions are currently unavailable.";
+        status.hidden = false;
+      });
+    }
   } catch (err) {
     console.error(err);
     profileContainer.innerHTML = `<p class="error">Unable to load this profile: ${escapeHTML(errorMessage(err, "Please try again later."))}</p>`;
@@ -605,6 +657,141 @@ function safeImageUrl(value) {
     return url.protocol === "https:" ? url.href : "";
   } catch {
     return "";
+  }
+}
+
+function postAuthorAvatarMarkup(value, displayName) {
+  const avatarUrl = safeImageUrl(value);
+  if (avatarUrl) {
+    return `<img class="post-author-avatar" src="${escapeHTML(avatarUrl)}" alt="${escapeHTML(displayName)}'s profile picture">`;
+  }
+  return '<span class="post-author-avatar post-author-avatar-placeholder" aria-hidden="true"><i class="fa-regular fa-user"></i></span>';
+}
+
+function postReactionMarkup(postId) {
+  const reactions = [
+    { type: "like", label: "Like", image: "like.png" },
+    { type: "dislike", label: "Dislike", image: "dislike.png" },
+    { type: "react", label: "React", image: "react.png" },
+  ];
+  return `
+    <div class="post-reactions" aria-label="Post reactions">
+      ${reactions
+        .map(
+          ({ type, label, image }) => `
+            <button class="post-reaction" type="button" data-reaction="${type}" aria-label="${label}" aria-pressed="false">
+              <img src="images/design/${image}" alt="">
+              <span class="post-reaction-count" aria-live="polite">0</span>
+            </button>`,
+        )
+        .join("")}
+      <p class="post-reaction-status" role="status" hidden></p>
+    </div>
+  `;
+}
+
+function bindPostReactions(client, container) {
+  if (container.dataset.reactionsBound) return;
+  container.dataset.reactionsBound = "true";
+  container.addEventListener("click", async (event) => {
+    const button = event.target.closest(".post-reaction");
+    if (!button || !container.contains(button)) return;
+
+    const post = button.closest("[data-post-id]");
+    if (!post) return;
+    const status = post.querySelector(".post-reaction-status");
+    const buttons = post.querySelectorAll(".post-reaction");
+    buttons.forEach((reactionButton) => {
+      reactionButton.disabled = true;
+    });
+    status.hidden = true;
+
+    try {
+      const { data: userData, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      if (!userData.user) {
+        status.innerHTML =
+          'Sign in to react. <a href="signup.html#signin">Sign in</a>';
+        status.hidden = false;
+        return;
+      }
+
+      const { data: currentReaction, error: currentError } = await client
+        .from("post_reactions")
+        .select("reaction_type")
+        .eq("post_id", post.dataset.postId)
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (currentError) throw currentError;
+
+      if (currentReaction?.reaction_type === button.dataset.reaction) {
+        const { error } = await client
+          .from("post_reactions")
+          .delete()
+          .eq("post_id", post.dataset.postId)
+          .eq("user_id", userData.user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await client.from("post_reactions").upsert(
+          {
+            post_id: post.dataset.postId,
+            user_id: userData.user.id,
+            reaction_type: button.dataset.reaction,
+          },
+          { onConflict: "post_id,user_id" },
+        );
+        if (error) throw error;
+      }
+
+      await loadPostReactions(client, container, [post.dataset.postId]);
+    } catch (error) {
+      console.error(error);
+      status.textContent = `Unable to save reaction: ${errorMessage(error, "Please try again.")}`;
+      status.hidden = false;
+    } finally {
+      buttons.forEach((reactionButton) => {
+        reactionButton.disabled = false;
+      });
+    }
+  });
+}
+
+async function loadPostReactions(client, container, postIds) {
+  if (!postIds.length) return;
+  postIds = postIds.map(String);
+
+  const { data: userData, error: userError } = await client.auth.getUser();
+  if (userError) throw userError;
+
+  const { data: reactions, error } = await client
+    .from("post_reactions")
+    .select("post_id, user_id, reaction_type")
+    .in("post_id", postIds);
+  if (error) throw error;
+
+  const counts = new Map();
+  for (const reaction of reactions) {
+    const key = `${String(reaction.post_id)}:${reaction.reaction_type}`;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+
+  for (const post of container.querySelectorAll("[data-post-id]")) {
+    if (!postIds.includes(post.dataset.postId)) continue;
+    const postReactions = reactions.filter(
+      (reaction) => String(reaction.post_id) === post.dataset.postId,
+    );
+    for (const button of post.querySelectorAll(".post-reaction")) {
+      const type = button.dataset.reaction;
+      const count = counts.get(`${post.dataset.postId}:${type}`) || 0;
+      button.querySelector(".post-reaction-count").textContent = count;
+      const isSelected = postReactions.some(
+        (reaction) =>
+          reaction.user_id === userData.user?.id &&
+          reaction.reaction_type === type,
+      );
+      button.setAttribute("aria-pressed", String(isSelected));
+      button.classList.toggle("is-selected", isSelected);
+    }
   }
 }
 

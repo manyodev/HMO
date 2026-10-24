@@ -176,13 +176,17 @@ main {
   padding: 20px;
   display: grid;
   grid-template-areas: "img content";
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
 }
 .image-box {
-  width: 200px;
-  height: 200px;
   grid-area: img;
+  width: 100%;
+  aspect-ratio: 1;
 }
 .image-box img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -190,6 +194,73 @@ main {
 .post-content {
   grid-area: content;
   padding: 20px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.post-author {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.post-author-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.post-author-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--primary-color);
+  color: var(--accent-color);
+}
+.post-reactions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.post-reaction {
+  display: inline-flex;
+  min-width: 48px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 1px solid var(--secondary-color);
+  border-radius: 8px;
+  background-color: var(--primary-color);
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+}
+.post-reaction img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+.post-reaction:hover,
+.post-reaction.is-selected {
+  border-color: var(--accent-color);
+  background-color: #ffe5f3;
+}
+.post-reaction:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+.post-reaction:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.post-reaction-status {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 14px;
 }
 .post-title {
   font-size: 24px;
@@ -310,25 +381,18 @@ main {
       "img"
       "content";
     grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
     margin: 12px;
     padding: 12px;
     box-sizing: border-box;
   }
 
   .image-box {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1;
-  }
-
-  .image-box img {
-    display: block;
+    max-width: 100%;
   }
 
   .post-content {
-    min-width: 0;
     padding: 12px 2px 4px;
-    overflow-wrap: anywhere;
   }
 
   .post-content p {
