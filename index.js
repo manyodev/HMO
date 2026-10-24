@@ -154,6 +154,7 @@ async function initializeApp() {
       })
       .join("");
     bindPostReactions(supabaseClient, feedContainer);
+    bindPostComments(supabaseClient, feedContainer);
     try {
       await loadPostReactions(
         supabaseClient,
@@ -164,6 +165,19 @@ async function initializeApp() {
       console.error(error);
       feedContainer.querySelectorAll(".post-reaction-status").forEach((status) => {
         status.textContent = "Reactions are currently unavailable.";
+        status.hidden = false;
+      });
+    }
+    try {
+      await loadPostComments(
+        supabaseClient,
+        feedContainer,
+        data.map((post) => post.id),
+      );
+    } catch (error) {
+      console.error(error);
+      feedContainer.querySelectorAll(".post-comments-status").forEach((status) => {
+        status.textContent = "Comments are currently unavailable.";
         status.hidden = false;
       });
     }
@@ -602,6 +616,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
         .join("")}
     `;
     bindPostReactions(client, profilePosts);
+    bindPostComments(client, profilePosts);
     try {
       await loadPostReactions(
         client,
@@ -612,6 +627,19 @@ async function loadProfile(client, profileContainer, profilePosts) {
       console.error(error);
       profilePosts.querySelectorAll(".post-reaction-status").forEach((status) => {
         status.textContent = "Reactions are currently unavailable.";
+        status.hidden = false;
+      });
+    }
+    try {
+      await loadPostComments(
+        client,
+        profilePosts,
+        posts.map((post) => post.id),
+      );
+    } catch (error) {
+      console.error(error);
+      profilePosts.querySelectorAll(".post-comments-status").forEach((status) => {
+        status.textContent = "Comments are currently unavailable.";
         status.hidden = false;
       });
     }
@@ -687,8 +715,29 @@ function postReactionMarkup(postId) {
             </div>`,
         )
         .join("")}
+      <button class="post-comment-toggle" type="button" aria-expanded="false" aria-controls="post-comments-${escapeHTML(postId)}">
+        <i class="fa-regular fa-comment" aria-hidden="true"></i>
+        
+        <span class="post-comment-count" aria-live="polite">0</span>
+      </button>
       <p class="post-reaction-status" role="status" hidden></p>
     </div>
+    ${postCommentMarkup(postId)}
+  `;
+}
+
+function postCommentMarkup(postId) {
+  const commentsId = `post-comments-${escapeHTML(postId)}`;
+  return `
+    <section class="post-comments" id="${commentsId}" hidden>
+      <ol class="post-comments-list" aria-label="Comments"></ol>
+      <p class="post-comments-status" role="status" hidden></p>
+      <form class="post-comment-form">
+        <label for="${commentsId}-input">Add a comment</label>
+        <textarea id="${commentsId}-input" name="content" maxlength="1000" required></textarea>
+        <button type="submit">Post comment</button>
+      </form>
+    </section>
   `;
 }
 
@@ -758,6 +807,79 @@ function bindPostReactions(client, container) {
   });
 }
 
+function bindPostComments(client, container) {
+  if (container.dataset.commentsBound) return;
+  container.dataset.commentsBound = "true";
+
+  container.addEventListener("click", (event) => {
+    const button = event.target.closest(".post-comment-toggle");
+    if (!button || !container.contains(button)) return;
+
+    const post = button.closest("[data-post-id]");
+    const comments = post?.querySelector(".post-comments");
+    if (!comments) return;
+
+    const isOpening = comments.hidden;
+    comments.hidden = !isOpening;
+    button.setAttribute("aria-expanded", String(isOpening));
+    if (isOpening) comments.querySelector("textarea").focus();
+  });
+
+  container.addEventListener("submit", async (event) => {
+    const form = event.target.closest(".post-comment-form");
+    if (!form || !container.contains(form)) return;
+    event.preventDefault();
+
+    const post = form.closest("[data-post-id]");
+    const input = form.querySelector("textarea");
+    const submitButton = form.querySelector('button[type="submit"]');
+    const status = post.querySelector(".post-comments-status");
+    const content = input.value.trim();
+    status.hidden = true;
+    if (!content || content.length > 1000) {
+      status.textContent = "Comments must be between 1 and 1000 characters.";
+      status.hidden = false;
+      return;
+    }
+
+    submitButton.disabled = true;
+    try {
+      const { data: userData, error: userError } = await client.auth.getUser();
+      if (userError) throw userError;
+      if (!userData.user) {
+        status.innerHTML =
+          'Sign in to comment. <a href="signup.html#signin">Sign in</a>';
+        status.hidden = false;
+        return;
+      }
+
+      const { error } = await client.from("post_comments").insert({
+        post_id: post.dataset.postId,
+        user_id: userData.user.id,
+        content,
+      });
+      if (error) throw error;
+
+      input.value = "";
+      try {
+        await loadPostComments(client, container, [post.dataset.postId]);
+        status.textContent = "Comment posted.";
+      } catch (error) {
+        console.error(error);
+        status.textContent =
+          "Comment posted, but the comments could not be refreshed.";
+      }
+      status.hidden = false;
+    } catch (error) {
+      console.error(error);
+      status.textContent = `Unable to post comment: ${errorMessage(error, "Please try again.")}`;
+      status.hidden = false;
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+}
+
 async function loadPostReactions(client, container, postIds) {
   if (!postIds.length) return;
   postIds = postIds.map(String);
@@ -796,6 +918,45 @@ async function loadPostReactions(client, container, postIds) {
       button.setAttribute("aria-pressed", String(isSelected));
       button.classList.toggle("is-selected", isSelected);
     }
+  }
+}
+
+async function loadPostComments(client, container, postIds) {
+  if (!postIds.length) return;
+  postIds = postIds.map(String);
+
+  const { data: comments, error } = await client
+    .from("post_comments")
+    .select(
+      "id, post_id, content, created_at, author:profiles!post_comments_user_id_profiles_fkey(display_name)",
+    )
+    .in("post_id", postIds)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const commentsByPost = new Map();
+  for (const comment of comments) {
+    const postId = String(comment.post_id);
+    const postComments = commentsByPost.get(postId) || [];
+    postComments.push(comment);
+    commentsByPost.set(postId, postComments);
+  }
+
+  for (const post of container.querySelectorAll("[data-post-id]")) {
+    if (!postIds.includes(post.dataset.postId)) continue;
+    const postComments = commentsByPost.get(post.dataset.postId) || [];
+    post.querySelector(".post-comment-count").textContent =
+      postComments.length;
+    post.querySelector(".post-comments-list").innerHTML = postComments
+      .map(
+        (comment) => `
+          <li>
+            <strong>${escapeHTML(comment.author?.display_name || "User")}</strong>
+            <time datetime="${escapeHTML(comment.created_at)}">${escapeHTML(new Date(comment.created_at).toLocaleString())}</time>
+            <p>${escapeHTML(comment.content)}</p>
+          </li>`,
+      )
+      .join("");
   }
 }
 

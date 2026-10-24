@@ -261,9 +261,88 @@ main {
   cursor: wait;
   opacity: 0.65;
 }
+.post-comment-toggle {
+  display: inline-flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--secondary-color);
+  border-radius: 8px;
+  background-color: var(--primary-color);
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+}
+.post-comment-toggle:hover,
+.post-comment-toggle[aria-expanded="true"] {
+  border-color: var(--accent-color);
+  background-color: #ffe5f3;
+}
+.post-comment-toggle:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+.post-comment-toggle:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
 .post-reaction-status {
   flex-basis: 100%;
   margin: 0;
+  font-size: 14px;
+}
+.post-comments {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--secondary-color);
+}
+.post-comments-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.post-comments-list li {
+  overflow-wrap: anywhere;
+}
+.post-comments-list time {
+  margin-left: 8px;
+  color: #777;
+  font-size: 13px;
+}
+.post-comments-list p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+.post-comment-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.post-comment-form textarea {
+  min-height: 72px;
+  padding: 8px;
+  resize: vertical;
+  font: inherit;
+}
+.post-comment-form button {
+  justify-self: start;
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid var(--secondary-color);
+  border-radius: 6px;
+  background: var(--primary-color);
+  cursor: pointer;
+  font: inherit;
+}
+.post-comment-form button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.post-comments-status {
+  margin: 8px 0;
   font-size: 14px;
 }
 .post-title {
