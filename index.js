@@ -171,12 +171,12 @@ async function initializeApp() {
         const file = fileInput.files[0];
         const { data: profile, error: profileError } = await supabaseClient
           .from("profiles")
-          .select("id, username")
+          .select("id, display_name")
           .eq("id", session.user.id)
           .single();
 
         if (profileError) throw profileError;
-        const username = profile.username;
+        const displayName = profile.display_name;
 
         if (!file) throw new Error("Please choose an image to upload.");
 
@@ -200,7 +200,7 @@ async function initializeApp() {
 
         // 4. Save text structure + image link into the database rows
         const newPost = {
-          username,
+          username: displayName,
           content,
           image_url: publicImageUrl,
           submitted_by: profile.id,
@@ -213,7 +213,7 @@ async function initializeApp() {
 
         // Success
         forumForm.reset();
-        authorName.value = username;
+        authorName.value = displayName;
         postStatusMsg.hidden = false;
         postStatusMsg.textContent = "HMO submitted successfully!";
         setTimeout(() => {
@@ -342,16 +342,16 @@ async function initializeApp() {
     if (sessionData.session) {
       const { data: profile, error } = await supabaseClient
         .from("profiles")
-        .select("username")
+        .select("display_name")
         .eq("id", sessionData.session.user.id)
         .single();
 
       if (error) {
         console.error(error);
         authorName.readOnly = true;
-        authorName.placeholder = "Unable to load your account username";
+        authorName.placeholder = "Unable to load your display name";
       } else {
-        authorName.value = profile.username;
+        authorName.value = profile.display_name;
         authorName.readOnly = true;
       }
     }
@@ -387,21 +387,119 @@ async function loadProfile(client, profileContainer, profilePosts) {
 
     const { data: profile, error: profileError } = await client
       .from("profiles")
-      .select("id, display_name, username")
+      .select("id, display_name, username, avatar_url")
       .eq("id", id)
       .single();
     if (profileError) throw profileError;
 
+    const avatarUrl = safeImageUrl(profile.avatar_url);
+    const avatarMarkup = avatarUrl
+      ? `<img class="profile-avatar" src="${escapeHTML(avatarUrl)}" alt="${escapeHTML(profile.display_name)}'s profile picture">`
+      : '<div class="profile-avatar profile-avatar-placeholder" aria-hidden="true"><i class="fa-regular fa-user"></i></div>';
     const emailMarkup =
       isOwnProfile && userData.user?.email
         ? `<p><strong>Email:</strong> ${escapeHTML(userData.user.email)}</p>`
         : "";
     profileContainer.innerHTML = `
-      <h1>${escapeHTML(profile.display_name)}</h1>
-      <p><strong>Username:</strong> @${escapeHTML(profile.username)}</p>
-      ${emailMarkup}
+      <div class="profile-heading">
+        ${avatarMarkup}
+        <div>
+          <h1>${escapeHTML(profile.display_name)}</h1>
+          <p><strong>Username:</strong> @${escapeHTML(profile.username)}</p>
+          ${emailMarkup}
+        </div>
+      </div>
+      ${
+        isOwnProfile
+          ? `<form id="profile-edit-form" class="profile-edit-form">
+              <h2>Edit Profile</h2>
+              <p class="status-msg" id="profile-edit-status" aria-live="polite" hidden></p>
+              <label for="profile-display-name">Display name</label>
+              <input id="profile-display-name" name="display_name" type="text" maxlength="80" value="${escapeHTML(profile.display_name)}" required>
+              <label for="profile-avatar-file">Profile picture (optional)</label>
+              <input id="profile-avatar-file" name="avatar" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+              <button type="submit" id="profile-save-btn">Save changes</button>
+            </form>`
+          : ""
+      }
     `;
     document.title = `${profile.display_name} - Hear Me Outs`;
+
+    const editForm = document.getElementById("profile-edit-form");
+    if (editForm) {
+      const statusMessage = document.getElementById("profile-edit-status");
+      const saveButton = document.getElementById("profile-save-btn");
+      editForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        statusMessage.textContent = "";
+        statusMessage.className = "status-msg";
+        statusMessage.hidden = true;
+        saveButton.disabled = true;
+        saveButton.textContent = "Saving...";
+
+        try {
+          const displayName = document
+            .getElementById("profile-display-name")
+            .value.trim();
+          const avatarFile = document.getElementById("profile-avatar-file")
+            .files[0];
+          if (!displayName || displayName.length > 80) {
+            throw new Error("Display name must be between 1 and 80 characters.");
+          }
+
+          const updates = { display_name: displayName };
+          if (avatarFile) {
+            const allowedTypes = [
+              "image/png",
+              "image/jpeg",
+              "image/webp",
+              "image/gif",
+            ];
+            if (!allowedTypes.includes(avatarFile.type)) {
+              throw new Error("Choose a PNG, JPEG, WebP, or GIF image.");
+            }
+            if (avatarFile.size > 5 * 1024 * 1024) {
+              throw new Error("Profile pictures must be 5 MB or smaller.");
+            }
+
+            const extension = {
+              "image/png": "png",
+              "image/jpeg": "jpg",
+              "image/webp": "webp",
+              "image/gif": "gif",
+            }[avatarFile.type];
+            const avatarPath = `${profile.id}/avatars/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${extension}`;
+            const { error: uploadError } = await client.storage
+              .from("user-images")
+              .upload(avatarPath, avatarFile, { contentType: avatarFile.type });
+            if (uploadError) throw uploadError;
+
+            const { data: publicUrlData } = client.storage
+              .from("user-images")
+              .getPublicUrl(avatarPath);
+            updates.avatar_url = publicUrlData.publicUrl;
+          }
+
+          const { error: updateError } = await client
+            .from("profiles")
+            .update(updates)
+            .eq("id", profile.id);
+          if (updateError) throw updateError;
+
+          await loadProfile(client, profileContainer, profilePosts);
+        } catch (error) {
+          console.error(error);
+          statusMessage.textContent = `Unable to save your profile: ${errorMessage(error, "Please try again.")}`;
+          statusMessage.classList.add("error");
+          statusMessage.hidden = false;
+        } finally {
+          if (saveButton.isConnected) {
+            saveButton.disabled = false;
+            saveButton.textContent = "Save changes";
+          }
+        }
+      });
+    }
 
     let postsQuery = client
       .from("posts")

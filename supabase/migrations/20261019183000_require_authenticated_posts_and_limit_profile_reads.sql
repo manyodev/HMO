@@ -10,7 +10,6 @@ BEGIN
     WHERE schemaname = 'public'
       AND tablename = 'posts'
       AND cmd IN ('INSERT', 'ALL')
-      AND ('public' = ANY(roles) OR 'anon' = ANY(roles))
   LOOP
     EXECUTE format(
       'DROP POLICY %I ON public.posts',

@@ -1,11 +1,14 @@
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
   display_name text NOT NULL CHECK (length(trim(display_name)) BETWEEN 1 AND 80),
   username text NOT NULL CHECK (username ~ '^[a-z0-9_]{3,24}$'),
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX profiles_username_lower_unique
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
+
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower_unique
   ON public.profiles (lower(username));
 
 INSERT INTO public.profiles (id, display_name, username)
@@ -28,7 +31,8 @@ SELECT
     ),
     11
   ) || '_' || substr(replace(users.id::text, '-', ''), 1, 12)
-FROM auth.users AS users;
+FROM auth.users AS users
+ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
@@ -63,7 +67,7 @@ CREATE TRIGGER on_auth_user_created_create_profile
   EXECUTE FUNCTION public.create_profile_for_new_user();
 
 ALTER TABLE public.posts
-  ADD COLUMN user_id uuid REFERENCES auth.users (id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users (id) ON DELETE SET NULL;
 
 CREATE POLICY "Users can read their own posts"
   ON public.posts
