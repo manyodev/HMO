@@ -224,13 +224,17 @@ main {
   gap: 8px;
   margin-top: 16px;
 }
+.post-reaction-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .post-reaction {
   display: inline-flex;
-  min-width: 48px;
-  min-height: 44px;
+  min-width: 56px;
+  min-height: 56px;
   align-items: center;
   justify-content: center;
-  gap: 5px;
   padding: 6px 8px;
   border: 1px solid var(--secondary-color);
   border-radius: 8px;
@@ -240,8 +244,8 @@ main {
   font: inherit;
 }
 .post-reaction img {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
 }
 .post-reaction:hover,

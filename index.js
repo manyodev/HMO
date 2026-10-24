@@ -679,10 +679,12 @@ function postReactionMarkup(postId) {
       ${reactions
         .map(
           ({ type, label, image }) => `
-            <button class="post-reaction" type="button" data-reaction="${type}" aria-label="${label}" aria-pressed="false">
-              <img src="images/design/${image}" alt="">
+            <div class="post-reaction-option">
+              <button class="post-reaction" type="button" data-reaction="${type}" aria-label="${label}" aria-pressed="false">
+                <img src="images/design/${image}" alt="">
+              </button>
               <span class="post-reaction-count" aria-live="polite">0</span>
-            </button>`,
+            </div>`,
         )
         .join("")}
       <p class="post-reaction-status" role="status" hidden></p>
@@ -783,7 +785,9 @@ async function loadPostReactions(client, container, postIds) {
     for (const button of post.querySelectorAll(".post-reaction")) {
       const type = button.dataset.reaction;
       const count = counts.get(`${post.dataset.postId}:${type}`) || 0;
-      button.querySelector(".post-reaction-count").textContent = count;
+      button
+        .closest(".post-reaction-option")
+        .querySelector(".post-reaction-count").textContent = count;
       const isSelected = postReactions.some(
         (reaction) =>
           reaction.user_id === userData.user?.id &&
