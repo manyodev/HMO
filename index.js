@@ -103,6 +103,7 @@ async function initializeApp() {
   const forumForm = document.getElementById("forumForm");
   const postStatusMsg = document.getElementById("statusMsg");
   const submitBtn = document.getElementById("submit-btn");
+  let isOgSubmitter = false;
   const signupForm = document.getElementById("signup-form");
   const signupStatusMsg = document.getElementById("statusMsg2");
   const signupSubmitBtn = document.getElementById("submit-btn2");
@@ -144,6 +145,30 @@ async function initializeApp() {
   const { data: authListener } = supabaseClient.auth.onAuthStateChange(
     (event, session) => {
       renderNavigation(session);
+      if (forumForm && event === "SIGNED_OUT") {
+        isOgSubmitter = false;
+        if (submitBtn && !submitBtn.disabled) {
+          submitBtn.textContent = "Submit for Review";
+        }
+      } else if (forumForm && session && event === "SIGNED_IN") {
+        supabaseClient
+          .from("profiles")
+          .select("is_og")
+          .eq("id", session.user.id)
+          .single()
+          .then(({ data, error }) => {
+            if (error) {
+              console.error(error);
+              return;
+            }
+            isOgSubmitter = data.is_og;
+            if (submitBtn && !submitBtn.disabled) {
+              submitBtn.textContent = isOgSubmitter
+                ? "Submit"
+                : "Submit for Review";
+            }
+          });
+      }
       if (feedContainer && event !== "INITIAL_SESSION") {
         fetchApprovedPosts();
       }
@@ -214,7 +239,7 @@ async function initializeApp() {
                       ${post.author_profile?.is_og ? '<span class="role-badge post-author-role-badge">OG</span>' : ""}
                       <small class="post-date">• ${new Date(post.created_at).toLocaleDateString()}</small>
                     </div>
-                    <p>${escapeHTML(post.content)}</p>
+                    ${post.content ? `<p>${escapeHTML(post.content)}</p>` : ""}
                     ${postReactionMarkup(post.id)}
                     </div>
                 </div>
@@ -293,11 +318,12 @@ async function initializeApp() {
         const file = fileInput.files[0];
         const { data: profile, error: profileError } = await supabaseClient
           .from("profiles")
-          .select("id, display_name")
+          .select("id, display_name, is_og")
           .eq("id", session.user.id)
           .single();
 
         if (profileError) throw profileError;
+        isOgSubmitter = profile.is_og;
         const displayName = profile.display_name;
 
         if (!file) throw new Error("Please choose an image to upload.");
@@ -357,7 +383,7 @@ async function initializeApp() {
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.innerText = "Submit for Review";
+          submitBtn.innerText = isOgSubmitter ? "Submit" : "Submit for Review";
         }
       }
     });
@@ -465,15 +491,19 @@ async function initializeApp() {
     if (sessionData.session) {
       const { data: profile, error } = await supabaseClient
         .from("profiles")
-        .select("display_name")
+        .select("display_name, is_og")
         .eq("id", sessionData.session.user.id)
         .single();
 
       if (error) {
         console.error(error);
+        isOgSubmitter = false;
+        submitBtn.innerText = "Submit for Review";
         authorName.readOnly = true;
         authorName.placeholder = "Unable to load your display name";
       } else {
+        isOgSubmitter = profile.is_og;
+        submitBtn.innerText = isOgSubmitter ? "Submit" : "Submit for Review";
         authorName.value = profile.display_name;
         authorName.readOnly = true;
       }
@@ -692,7 +722,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
                   <small class="post-date">• ${escapeHTML(new Date(post.created_at).toLocaleDateString())}</small>
                 </div>
                 ${postStatus}
-                <p>${escapeHTML(post.content)}</p>
+                ${post.content ? `<p>${escapeHTML(post.content)}</p>` : ""}
                 ${
                   canManagePost
                     ? `<div class="post-owner-actions">
@@ -702,7 +732,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
                       <p class="post-edit-status" role="status" hidden></p>
                       <form class="post-edit-form" hidden>
                         <label for="edit-content-${escapeHTML(post.id)}">Post text</label>
-                        <textarea id="edit-content-${escapeHTML(post.id)}" name="content" required>${escapeHTML(post.content)}</textarea>
+                        <textarea id="edit-content-${escapeHTML(post.id)}" name="content">${escapeHTML(post.content)}</textarea>
                         <label for="edit-topic-${escapeHTML(post.id)}">Character topic</label>
                         <select id="edit-topic-${escapeHTML(post.id)}" name="topic" required>
                           ${postTopicOptionsMarkup(post.topic)}
@@ -924,12 +954,6 @@ function bindOwnedPostActions(client, container, reloadProfile) {
     const content = form.elements.content.value.trim();
     const topic = form.elements.topic.value;
     status.hidden = true;
-    if (!content) {
-      status.textContent = "Post text cannot be empty.";
-      status.hidden = false;
-      return;
-    }
-
     saveButton.disabled = true;
     try {
       const { error } = await client
