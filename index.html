@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="index.css" />
     <link rel="stylesheet" href="images/design/css/all.min.css" />
     <script src="index.js" defer></script>
-    <title>Submit - Hear Me Outs</title>
+    <title>Hear Me Outs</title>
     <link
       rel="icon"
       type="image/x-icon"
@@ -35,7 +35,25 @@
         <a href="signup.html">Sign Up</a>
       </div>
     </div>
-    <main>
+    <main class="feed-page">
+      <div class="feed-toolbar">
+        <label for="feed-sort">Sort posts</label>
+        <select id="feed-sort" name="sort">
+          <option value="newest">Newest</option>
+          <option value="most-liked">Most liked</option>
+        </select>
+        <label for="feed-topic">Topic</label>
+        <select id="feed-topic" name="topic">
+          <option value="all">All topics</option>
+          <option value="Anime">Anime</option>
+          <option value="Cartoon">Cartoon</option>
+          <option value="Comics">Comics</option>
+          <option value="K-pop">K-pop</option>
+          <option value="Movies &amp; TV">Movies &amp; TV</option>
+          <option value="Video game">Video game</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
       <div id="approved-feed">Loading posts...</div>
     </main>
   </body>

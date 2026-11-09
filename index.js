@@ -2,6 +2,59 @@ const SUPABASE_URL = "https://oxllmfeqwlxnacsarrgu.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94bGxtZmVxd2x4bmFjc2Fycmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzMzk2MTQsImV4cCI6MjEwNzkxNTYxNH0.ZU3FVUdx0yiIQiNX6BgKROAFuzT_wEPyF-Uqb5LMwRE";
 
+function initializeThemePicker() {
+  const header = document.querySelector(".header");
+  if (!header || document.getElementById("theme-picker")) return;
+
+  const themes = [
+    { value: "pink", label: "Bubblegum" },
+    { value: "midnight", label: "Midnight" },
+    { value: "ocean", label: "Ocean" },
+    { value: "forest", label: "Forest" },
+    { value: "sunset", label: "Sunset" },
+  ];
+  const themeControl = document.createElement("div");
+  themeControl.className = "theme-control";
+
+  const label = document.createElement("label");
+  label.htmlFor = "theme-picker";
+  label.textContent = "Theme";
+
+  const picker = document.createElement("select");
+  picker.id = "theme-picker";
+  picker.setAttribute("aria-label", "Choose site theme");
+  for (const theme of themes) {
+    const option = document.createElement("option");
+    option.value = theme.value;
+    option.textContent = theme.label;
+    picker.append(option);
+  }
+
+  let savedTheme = "pink";
+  try {
+    const storedTheme = window.localStorage.getItem("hmo-theme");
+    if (themes.some((theme) => theme.value === storedTheme)) {
+      savedTheme = storedTheme;
+    }
+  } catch (error) {
+    console.warn("Unable to read the saved theme preference.", error);
+  }
+
+  picker.value = savedTheme;
+  document.documentElement.dataset.theme = savedTheme;
+  picker.addEventListener("change", () => {
+    document.documentElement.dataset.theme = picker.value;
+    try {
+      window.localStorage.setItem("hmo-theme", picker.value);
+    } catch (error) {
+      console.warn("Unable to save the theme preference.", error);
+    }
+  });
+
+  themeControl.append(label, picker);
+  header.insertBefore(themeControl, header.querySelector(".nav"));
+}
+
 // Load the Supabase browser library if the page has not loaded it yet.
 function loadSupabaseLibrary() {
   if (window.supabase?.createClient) return Promise.resolve();
@@ -45,6 +98,8 @@ async function initializeApp() {
     },
   );
   const feedContainer = document.getElementById("approved-feed");
+  const feedSort = document.getElementById("feed-sort");
+  const feedTopic = document.getElementById("feed-topic");
   const forumForm = document.getElementById("forumForm");
   const postStatusMsg = document.getElementById("statusMsg");
   const submitBtn = document.getElementById("submit-btn");
@@ -103,13 +158,24 @@ async function initializeApp() {
   const { data: initialSession } = await supabaseClient.auth.getSession();
   renderNavigation(initialSession.session);
 
+  if (feedSort && feedContainer) {
+    feedSort.addEventListener("change", () => {
+      applyFeedControls(feedContainer, feedSort.value, feedTopic?.value || "all");
+    });
+  }
+  if (feedTopic && feedContainer) {
+    feedTopic.addEventListener("change", () => {
+      applyFeedControls(feedContainer, feedSort?.value || "newest", feedTopic.value);
+    });
+  }
+
   async function fetchApprovedPosts() {
     if (!feedContainer) return;
 
     const { data, error } = await supabaseClient
       .from("posts")
       .select(
-        "id, username, content, image_url, created_at, submitted_by, author_profile:profiles!posts_submitted_by_profiles_fkey(avatar_url)",
+        "id, username, content, image_url, topic, created_at, submitted_by, author_profile:profiles!posts_submitted_by_profiles_fkey(avatar_url, is_og)",
       )
       .eq("is_approved", true)
       .order("created_at", { ascending: false });
@@ -136,15 +202,17 @@ async function initializeApp() {
         );
         const imageUrl = safeImageUrl(post.image_url);
         return `
-                <div class="post" data-post-id="${escapeHTML(post.id)}">
+                <div class="post" data-post-id="${escapeHTML(post.id)}" data-created-at="${escapeHTML(post.created_at)}" data-topic="${escapeHTML(post.topic || "Other")}" data-like-count="0">
                 <div class="image-box">
                     ${imageUrl ? `<img src="${escapeHTML(imageUrl)}" alt="User upload">` : ""}
                     </div>
                     <div class="post-content">
+                    ${postTopicTagMarkup(post.topic)}
                     <div class="post-author">
                       ${authorAvatar}
                       <strong>${author}</strong>
-                      <small style="color:#777;">• ${new Date(post.created_at).toLocaleDateString()}</small>
+                      ${post.author_profile?.is_og ? '<span class="role-badge post-author-role-badge">OG</span>' : ""}
+                      <small class="post-date">• ${new Date(post.created_at).toLocaleDateString()}</small>
                     </div>
                     <p>${escapeHTML(post.content)}</p>
                     ${postReactionMarkup(post.id)}
@@ -153,6 +221,11 @@ async function initializeApp() {
             `;
       })
       .join("");
+    applyFeedControls(
+      feedContainer,
+      feedSort?.value || "newest",
+      feedTopic?.value || "all",
+    );
     bindPostReactions(supabaseClient, feedContainer);
     bindPostComments(supabaseClient, feedContainer);
     try {
@@ -160,6 +233,11 @@ async function initializeApp() {
         supabaseClient,
         feedContainer,
         data.map((post) => post.id),
+      );
+      applyFeedControls(
+        feedContainer,
+        feedSort?.value || "newest",
+        feedTopic?.value || "all",
       );
     } catch (error) {
       console.error(error);
@@ -210,6 +288,7 @@ async function initializeApp() {
 
         const authorName = document.getElementById("authorName");
         const content = document.getElementById("postContent").value.trim();
+        const topic = document.getElementById("postTopic").value;
         const fileInput = document.getElementById("imageFile");
         const file = fileInput.files[0];
         const { data: profile, error: profileError } = await supabaseClient
@@ -245,6 +324,7 @@ async function initializeApp() {
         const newPost = {
           username: displayName,
           content,
+          topic,
           image_url: publicImageUrl,
           submitted_by: profile.id,
         };
@@ -430,7 +510,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
 
     const { data: profile, error: profileError } = await client
       .from("profiles")
-      .select("id, display_name, username, avatar_url")
+      .select("id, display_name, username, avatar_url, is_og")
       .eq("id", id)
       .single();
     if (profileError) throw profileError;
@@ -447,7 +527,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
       <div class="profile-heading">
         ${avatarMarkup}
         <div>
-          <h1>${escapeHTML(profile.display_name)}</h1>
+          <h1>${escapeHTML(profile.display_name)}${profile.is_og ? ' <span class="role-badge">OG</span>' : ""}</h1>
           <p><strong>Username:</strong> @${escapeHTML(profile.username)}</p>
           ${emailMarkup}
         </div>
@@ -546,7 +626,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
 
     let postsQuery = client
       .from("posts")
-      .select("id, username, content, image_url, created_at, is_approved")
+      .select("id, username, content, image_url, topic, created_at, is_approved, submitted_by")
       .eq("submitted_by", profile.id)
       .order("created_at", { ascending: false });
     if (!isOwnProfile) postsQuery = postsQuery.eq("is_approved", true);
@@ -555,7 +635,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
     if (postsError && isMissingSubmittedBy(postsError)) {
       let legacyPostsQuery = client
         .from("posts")
-        .select("id, username, content, image_url, created_at, is_approved")
+        .select("id, username, content, image_url, topic, created_at, is_approved")
         .eq("username", profile.username)
         .eq("is_approved", true)
         .order("created_at", { ascending: false });
@@ -563,7 +643,7 @@ async function loadProfile(client, profileContainer, profilePosts) {
     } else if (!postsError) {
       const { data, error } = await client
         .from("posts")
-        .select("id, username, content, image_url, created_at, is_approved")
+        .select("id, username, content, image_url, topic, created_at, is_approved, submitted_by")
         .eq("username", profile.username)
         .is("submitted_by", null)
         .eq("is_approved", true)
@@ -595,19 +675,45 @@ async function loadProfile(client, profileContainer, profilePosts) {
             isOwnProfile && !post.is_approved
               ? '<small class="post-status">Pending review</small>'
               : "";
+          const canManagePost =
+            isOwnProfile &&
+            userData.user?.id &&
+            post.submitted_by === userData.user.id;
           return `
             <article class="post" data-post-id="${escapeHTML(post.id)}">
               <div class="image-box">
                 ${imageUrl ? `<img src="${escapeHTML(imageUrl)}" alt="User upload">` : ""}
               </div>
               <div class="post-content">
+                ${postTopicTagMarkup(post.topic)}
                 <div class="post-author">
                   ${authorAvatar}
                   <strong>${escapeHTML(profile.display_name)}</strong>
-                  <small style="color:#777;">• ${escapeHTML(new Date(post.created_at).toLocaleDateString())}</small>
+                  <small class="post-date">• ${escapeHTML(new Date(post.created_at).toLocaleDateString())}</small>
                 </div>
                 ${postStatus}
                 <p>${escapeHTML(post.content)}</p>
+                ${
+                  canManagePost
+                    ? `<div class="post-owner-actions">
+                        <button class="post-edit-toggle" type="button" aria-expanded="false">Edit post</button>
+                        <button class="post-delete" type="button">Delete post</button>
+                      </div>
+                      <p class="post-edit-status" role="status" hidden></p>
+                      <form class="post-edit-form" hidden>
+                        <label for="edit-content-${escapeHTML(post.id)}">Post text</label>
+                        <textarea id="edit-content-${escapeHTML(post.id)}" name="content" required>${escapeHTML(post.content)}</textarea>
+                        <label for="edit-topic-${escapeHTML(post.id)}">Character topic</label>
+                        <select id="edit-topic-${escapeHTML(post.id)}" name="topic" required>
+                          ${postTopicOptionsMarkup(post.topic)}
+                        </select>
+                        <div class="post-edit-buttons">
+                          <button type="submit">Save changes</button>
+                          <button class="post-edit-cancel" type="button">Cancel</button>
+                        </div>
+                      </form>`
+                    : ""
+                }
                 ${postReactionMarkup(post.id)}
               </div>
             </article>
@@ -615,6 +721,11 @@ async function loadProfile(client, profileContainer, profilePosts) {
         })
         .join("")}
     `;
+    if (isOwnProfile) {
+      bindOwnedPostActions(client, profilePosts, () =>
+        loadProfile(client, profileContainer, profilePosts),
+      );
+    }
     bindPostReactions(client, profilePosts);
     bindPostComments(client, profilePosts);
     try {
@@ -694,6 +805,149 @@ function postAuthorAvatarMarkup(value, displayName) {
     return `<img class="post-author-avatar" src="${escapeHTML(avatarUrl)}" alt="${escapeHTML(displayName)}'s profile picture">`;
   }
   return '<span class="post-author-avatar post-author-avatar-placeholder" aria-hidden="true"><i class="fa-regular fa-user"></i></span>';
+}
+
+function sortFeedPosts(container, sort) {
+  const posts = Array.from(container.querySelectorAll("[data-post-id]"));
+  posts.sort((a, b) => {
+    const newestFirst =
+      Date.parse(b.dataset.createdAt) - Date.parse(a.dataset.createdAt);
+    if (sort === "most-liked") {
+      const likeDifference =
+        Number(b.dataset.likeCount) - Number(a.dataset.likeCount);
+      if (likeDifference !== 0) return likeDifference;
+    }
+    return newestFirst;
+  });
+  container.append(...posts);
+}
+
+function applyFeedControls(container, sort, topic) {
+  sortFeedPosts(container, sort);
+  const posts = Array.from(container.querySelectorAll("[data-post-id]"));
+  let visibleCount = 0;
+  for (const post of posts) {
+    const isVisible = topic === "all" || post.dataset.topic === topic;
+    post.hidden = !isVisible;
+    if (isVisible) visibleCount += 1;
+  }
+
+  let emptyMessage = container.querySelector(".feed-filter-empty");
+  if (!emptyMessage) {
+    emptyMessage = document.createElement("p");
+    emptyMessage.className = "feed-filter-empty";
+    emptyMessage.textContent = "No posts match this topic.";
+    container.append(emptyMessage);
+  }
+  emptyMessage.hidden = visibleCount > 0;
+}
+
+function postTopicTagMarkup(topic) {
+  return `<span class="post-topic">${escapeHTML(topic || "Other")}</span>`;
+}
+
+function postTopicOptionsMarkup(selectedTopic) {
+  const topics = [
+    "Other",
+    "Anime",
+    "Cartoon",
+    "Comics",
+    "K-pop",
+    "Movies & TV",
+    "Video game",
+  ];
+  return topics
+    .map(
+      (topic) =>
+        `<option value="${escapeHTML(topic)}"${topic === (selectedTopic || "Other") ? " selected" : ""}>${escapeHTML(topic)}</option>`,
+    )
+    .join("");
+}
+
+function bindOwnedPostActions(client, container, reloadProfile) {
+  if (container.dataset.ownerActionsBound) return;
+  container.dataset.ownerActionsBound = "true";
+
+  container.addEventListener("click", async (event) => {
+    const editButton = event.target.closest(".post-edit-toggle");
+    const cancelButton = event.target.closest(".post-edit-cancel");
+    const deleteButton = event.target.closest(".post-delete");
+    const button = editButton || cancelButton || deleteButton;
+    if (!button || !container.contains(button)) return;
+
+    const post = button.closest("[data-post-id]");
+    if (!post) return;
+    const form = post.querySelector(".post-edit-form");
+
+    if (editButton || cancelButton) {
+      form.hidden = editButton ? !form.hidden : true;
+      post
+        .querySelector(".post-edit-toggle")
+        ?.setAttribute("aria-expanded", String(!form.hidden));
+      if (editButton && !form.hidden) {
+        form.querySelector("textarea").focus();
+      }
+      return;
+    }
+
+    if (!window.confirm("Delete this post? This cannot be undone.")) return;
+    deleteButton.disabled = true;
+    const status = post.querySelector(".post-edit-status");
+    if (status) status.hidden = true;
+    try {
+      const { error } = await client
+        .from("posts")
+        .delete()
+        .eq("id", post.dataset.postId)
+        .select("id")
+        .single();
+      if (error) throw error;
+      await reloadProfile();
+    } catch (error) {
+      console.error(error);
+      if (status) {
+        status.textContent = `Unable to delete post: ${errorMessage(error, "Please try again.")}`;
+        status.hidden = false;
+      }
+      deleteButton.disabled = false;
+    }
+  });
+
+  container.addEventListener("submit", async (event) => {
+    const form = event.target.closest(".post-edit-form");
+    if (!form || !container.contains(form)) return;
+    event.preventDefault();
+
+    const post = form.closest("[data-post-id]");
+    const saveButton = form.querySelector('button[type="submit"]');
+    const status = post.querySelector(".post-edit-status");
+    const content = form.elements.content.value.trim();
+    const topic = form.elements.topic.value;
+    status.hidden = true;
+    if (!content) {
+      status.textContent = "Post text cannot be empty.";
+      status.hidden = false;
+      return;
+    }
+
+    saveButton.disabled = true;
+    try {
+      const { error } = await client
+        .from("posts")
+        .update({ content, topic })
+        .eq("id", post.dataset.postId)
+        .select("id")
+        .single();
+      if (error) throw error;
+      await reloadProfile();
+    } catch (error) {
+      console.error(error);
+      status.textContent = `Unable to save post: ${errorMessage(error, "Please try again.")}`;
+      status.hidden = false;
+    } finally {
+      if (saveButton.isConnected) saveButton.disabled = false;
+    }
+  });
 }
 
 function postReactionMarkup(postId) {
@@ -795,6 +1049,13 @@ function bindPostReactions(client, container) {
       }
 
       await loadPostReactions(client, container, [post.dataset.postId]);
+      if (container.id === "approved-feed") {
+        applyFeedControls(
+          container,
+          document.getElementById("feed-sort")?.value || "newest",
+          document.getElementById("feed-topic")?.value || "all",
+        );
+      }
     } catch (error) {
       console.error(error);
       status.textContent = `Unable to save reaction: ${errorMessage(error, "Please try again.")}`;
@@ -901,6 +1162,8 @@ async function loadPostReactions(client, container, postIds) {
 
   for (const post of container.querySelectorAll("[data-post-id]")) {
     if (!postIds.includes(post.dataset.postId)) continue;
+    post.dataset.likeCount =
+      counts.get(`${post.dataset.postId}:like`) || 0;
     const postReactions = reactions.filter(
       (reaction) => String(reaction.post_id) === post.dataset.postId,
     );
@@ -968,4 +1231,5 @@ function errorMessage(error, fallback) {
     ? error.message
     : fallback;
 }
+initializeThemePicker();
 initializeApp();
